@@ -178,7 +178,7 @@ const MAXANISO = renderer.capabilities.getMaxAnisotropy();
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x121821);
-scene.fog = new THREE.Fog(0x121821, 5, 11);
+scene.fog = new THREE.Fog(0x121821, 12, 26);
 
 scene.add(new THREE.HemisphereLight(0xfff4e2, 0x26344a, 1.25));
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
@@ -196,7 +196,7 @@ const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.05, 4
 const TARGET = new THREE.Vector3(0, 0.05, 0.0);
 function camBase() {
   const a = innerWidth / innerHeight;
-  const D = (CAPTURE ? 2.8 : 2.65) * Math.max(1, 1.62 / a);
+  const D = (CAPTURE ? 2.8 : 2.65) * Math.max(1, 1.4 / a);
   return new THREE.Vector3(0, D * 0.77, D * 0.64).add(TARGET);
 }
 camera.position.copy(camBase());
@@ -205,7 +205,7 @@ camera.lookAt(TARGET);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.copy(TARGET);
 controls.enableDamping = true; controls.enablePan = false;
-controls.minDistance = 1.3; controls.maxDistance = 6;
+controls.minDistance = 1.3; controls.maxDistance = 14;
 controls.minPolarAngle = 0.15; controls.maxPolarAngle = 1.22;
 controls.minAzimuthAngle = -0.9; controls.maxAzimuthAngle = 0.9;
 controls.enabled = !CAPTURE;
@@ -213,7 +213,7 @@ controls.enabled = !CAPTURE;
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  if (CAPTURE) camera.position.copy(camBase());
+  camera.position.copy(camBase());
 });
 
 // ---------- table
