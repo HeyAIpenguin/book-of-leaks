@@ -1,0 +1,1337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Book of Leaks</title>
+<meta name="description" content="Six real security leaks as an interactive 3D pop-up book: Toyota, Uber, SolarWinds, OpenCode, Tailscale and my own Mac.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #141a24;
+    --chrome: rgba(250, 246, 238, 0.92);
+    --chrome-ink: #1f1d26;
+    --chrome-muted: #6b6774;
+    --accent: #d8433b;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --chrome: rgba(32, 36, 46, 0.92);
+      --chrome-ink: #f3efe6;
+      --chrome-muted: #a7a2ad;
+    }
+  }
+  :root[data-theme="dark"] {
+    --chrome: rgba(32, 36, 46, 0.92);
+    --chrome-ink: #f3efe6;
+    --chrome-muted: #a7a2ad;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); font-family: Inter, system-ui, sans-serif; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; touch-action: none; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  #bar {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 4px; padding: 6px;
+    background: var(--chrome); color: var(--chrome-ink); border-radius: 999px;
+    box-shadow: var(--shadow); backdrop-filter: blur(10px); max-width: calc(100vw - 32px);
+  }
+  #bar button { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; font-size: 20px; }
+  #bar button:hover { background: rgba(127, 127, 127, 0.15); }
+  #bar button:disabled { opacity: 0.3; cursor: default; }
+  #label { padding: 0 14px; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #label b { color: var(--accent); margin-right: 8px; }
+  #toc {
+    position: fixed; left: 50%; bottom: 78px; transform: translateX(-50%);
+    background: var(--chrome); color: var(--chrome-ink); border-radius: 16px; padding: 8px;
+    box-shadow: var(--shadow); min-width: 280px; max-width: calc(100vw - 32px);
+  }
+  #toc[hidden] { display: none; }
+  #toc button { display: flex; width: 100%; gap: 12px; padding: 9px 12px; border-radius: 10px; text-align: left; font-size: 15px; }
+  #toc button:hover { background: rgba(127, 127, 127, 0.15); }
+  #toc button span { color: var(--accent); font-weight: 800; width: 18px; }
+  #brand {
+    position: fixed; left: 16px; top: 16px; padding: 8px 14px; border-radius: 999px;
+    background: var(--chrome); color: var(--chrome-ink); text-decoration: none; font-weight: 600; font-size: 14px;
+    box-shadow: var(--shadow);
+  }
+  #hint {
+    position: fixed; right: 16px; top: 16px; padding: 8px 14px; border-radius: 999px;
+    background: var(--chrome); color: var(--chrome-muted); font-size: 13px; box-shadow: var(--shadow);
+    transition: opacity 0.6s;
+  }
+  @media (max-width: 720px) { #hint { display: none; } }
+  #loader {
+    position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg);
+    color: #f3efe6; font: 600 15px Inter, sans-serif; letter-spacing: 0.2em; transition: opacity 0.6s;
+  }
+
+  /* video capture overlay */
+  #cap { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.capture #cap { display: block; }
+  body.capture #bar, body.capture #brand, body.capture #hint, body.capture #toc { display: none !important; }
+  #hook {
+    position: absolute; left: 0; right: 0; top: 0; padding: 46px 60px 120px;
+    background: linear-gradient(180deg, rgba(10, 13, 20, 0.92) 0%, rgba(10, 13, 20, 0.7) 55%, rgba(10, 13, 20, 0) 100%);
+    color: #fff; text-align: center; transition: opacity 0.5s, transform 0.5s;
+  }
+  #hook .big { font: 800 78px/1.05 Inter, sans-serif; letter-spacing: -0.02em; }
+  #hook .big em { font-style: normal; color: #ff5a4f; }
+  #hook .small { margin-top: 14px; font: 600 30px Inter, sans-serif; color: #d9d4ca; }
+  #capline {
+    position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+    background: rgba(10, 13, 20, 0.86); color: #fff; padding: 16px 30px; border-radius: 18px;
+    font: 800 40px Inter, sans-serif; white-space: nowrap; transition: opacity 0.35s;
+  }
+  #capline span { color: #ff5a4f; }
+  #tag {
+    position: absolute; right: 36px; top: 30px; color: #fff; font: 600 24px Inter, sans-serif;
+    background: rgba(10, 13, 20, 0.7); padding: 8px 16px; border-radius: 999px; transition: opacity 0.5s;
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage"></div>
+<a id="brand" href="https://x.com/HeyAIpenguin" target="_blank" rel="noopener">@HeyAIpenguin</a>
+<div id="hint">Lift the sticky notes · drag to look around · ← → to turn pages</div>
+<div id="toc" hidden></div>
+<nav id="bar">
+  <button id="menuBtn" aria-label="Contents">☰</button>
+  <button id="prev" aria-label="Previous page">‹</button>
+  <div id="label"><b>0</b>The Book of Leaks</div>
+  <button id="next" aria-label="Next page">›</button>
+</nav>
+<div id="cap">
+  <div id="hook"><div class="big"></div><div class="small"></div></div>
+  <div id="capline"></div>
+  <div id="tag">@HeyAIpenguin</div>
+</div>
+<div id="loader">OPENING THE BOOK…</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const Q = new URLSearchParams(location.search);
+const CAPTURE = Q.has('capture');
+if (CAPTURE) document.body.classList.add('capture');
+
+const INK = 0x1f1d26, INK_CSS = '#1f1d26', RED_CSS = '#d8433b', PAPER_CSS = '#f7f2e7';
+const PW = 1, PH = 1.36;          // one page, world units
+const CW = 1024, CH = 1392;       // page canvas
+const FLAT = 0.042;               // page height away from the spine
+
+// ---------- helpers
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const easeBack = t => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
+function tex(c) { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
+function spacing(x, v) { if ('letterSpacing' in x) x.letterSpacing = v; }
+function wrap(x, text, X, Y, maxW, lh) {
+  let y = Y;
+  for (const para of String(text).split('\n')) {
+    let line = '';
+    for (const w of para.split(' ')) {
+      const test = line ? line + ' ' + w : w;
+      if (x.measureText(test).width > maxW && line) { x.fillText(line, X, y); y += lh; line = w; }
+      else line = test;
+    }
+    x.fillText(line, X, y); y += lh;
+  }
+  return y;
+}
+function fitFont(x, text, weight, size, family, maxW) {
+  let s = size;
+  do { x.font = `${weight} ${s}px ${family}`; s -= 4; } while (x.measureText(text).width > maxW && s > 20);
+}
+
+await Promise.all([
+  '600 40px Caveat', '700 40px Caveat', '600 40px Fraunces', '800 40px Fraunces',
+  '400 40px Inter', '600 40px Inter', '800 40px Inter', '600 40px "JetBrains Mono"', '800 40px "JetBrains Mono"',
+].map(f => document.fonts.load(f).catch(() => null)));
+
+// ---------- renderer / scene
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: CAPTURE });
+renderer.setPixelRatio(CAPTURE ? 1 : Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('stage').appendChild(renderer.domElement);
+const MAXANISO = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x121821);
+scene.fog = new THREE.Fog(0x121821, 5, 11);
+
+scene.add(new THREE.HemisphereLight(0xfff4e2, 0x26344a, 1.25));
+const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
+sun.position.set(-1.5, 3.4, 1.6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -1.5, right: 1.5, top: 1.2, bottom: -1.2, near: 0.5, far: 8 });
+sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.01; sun.shadow.radius = 5;
+scene.add(sun);
+const lamp = new THREE.PointLight(0xffc27a, 4, 7, 2);
+lamp.position.set(1.6, 1.5, -1.0);
+scene.add(lamp);
+
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.05, 40);
+const TARGET = new THREE.Vector3(0, 0.05, 0.0);
+function camBase() {
+  const a = innerWidth / innerHeight;
+  const D = (CAPTURE ? 2.8 : 2.65) * Math.max(1, 1.62 / a);
+  return new THREE.Vector3(0, D * 0.77, D * 0.64).add(TARGET);
+}
+camera.position.copy(camBase());
+camera.lookAt(TARGET);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(TARGET);
+controls.enableDamping = true; controls.enablePan = false;
+controls.minDistance = 1.3; controls.maxDistance = 6;
+controls.minPolarAngle = 0.15; controls.maxPolarAngle = 1.22;
+controls.minAzimuthAngle = -0.9; controls.maxAzimuthAngle = 0.9;
+controls.enabled = !CAPTURE;
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  if (CAPTURE) camera.position.copy(camBase());
+});
+
+// ---------- table
+{
+  const [c, x] = canvas(1024, 1024);
+  const g = x.createRadialGradient(512, 470, 60, 512, 512, 620);
+  g.addColorStop(0, '#2c3a4f'); g.addColorStop(1, '#121821');
+  x.fillStyle = g; x.fillRect(0, 0, 1024, 1024);
+  const r = rng(7);
+  for (let i = 0; i < 26000; i++) { x.fillStyle = `rgba(255,255,255,${r() * 0.035})`; x.fillRect(r() * 1024, r() * 1024, 1.5, 1.5); }
+  const table = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.95 }));
+  table.rotation.x = -Math.PI / 2; table.position.y = -0.036; table.receiveShadow = true;
+  scene.add(table);
+}
+
+// ---------- book body
+const coverMat = new THREE.MeshStandardMaterial({ color: 0x7d2320, roughness: 0.7 });
+{
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.016, 1.44), coverMat);
+  cover.position.y = -0.026; cover.castShadow = cover.receiveShadow = true; scene.add(cover);
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.44, 16, 1, false, Math.PI, Math.PI), coverMat);
+  spine.rotation.x = Math.PI / 2; spine.position.set(0, -0.028, 0); scene.add(spine);
+  const [c, x] = canvas(64, 256);
+  x.fillStyle = '#efe8d8'; x.fillRect(0, 0, 64, 256);
+  for (let i = 0; i < 256; i += 3) { x.fillStyle = 'rgba(120,100,70,0.18)'; x.fillRect(0, i, 64, 1); }
+  const blockMat = new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.95 });
+  for (const s of [-1, 1]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(PW - 0.02, 0.03, PH - 0.01), blockMat);
+    b.position.set(s * (PW / 2 + 0.005), -0.004, 0); b.castShadow = b.receiveShadow = true; scene.add(b);
+  }
+}
+const lift = d => 0.012 + (FLAT - 0.012) * (1 - Math.exp(-d / 0.055));
+function pageGeo(side) {
+  const g = new THREE.PlaneGeometry(PW, PH, 48, 1);
+  g.rotateX(-Math.PI / 2);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i) + side * PW / 2;
+    p.setX(i, x); p.setY(i, lift(Math.abs(x)));
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const leftPage = new THREE.Mesh(pageGeo(-1), new THREE.MeshStandardMaterial({ roughness: 0.95 }));
+const rightPage = new THREE.Mesh(pageGeo(1), new THREE.MeshStandardMaterial({ roughness: 0.95 }));
+leftPage.receiveShadow = rightPage.receiveShadow = true;
+scene.add(leftPage, rightPage);
+
+// ---------- paper canvases
+function paper(side) {
+  const [c, x] = canvas(CW, CH);
+  x.fillStyle = PAPER_CSS; x.fillRect(0, 0, CW, CH);
+  const r = rng(side === 'L' ? 11 : 12);
+  for (let i = 0; i < 9000; i++) { x.fillStyle = `rgba(90,70,40,${r() * 0.05})`; x.fillRect(r() * CW, r() * CH, 1.5, 1.5); }
+  const g = side === 'L' ? x.createLinearGradient(CW, 0, CW - 170, 0) : x.createLinearGradient(0, 0, 170, 0);
+  g.addColorStop(0, 'rgba(80,60,30,0.22)'); g.addColorStop(1, 'rgba(80,60,30,0)');
+  x.fillStyle = g; x.fillRect(0, 0, CW, CH);
+  return [c, x];
+}
+const M = 92;                                    // page margin in canvas px
+const FLAP = { x: M, y: 930, w: 430, h: 230 };   // sticky note slot on the left page; it flips over to the right
+const STAMP = { x: 640, y: 1090, w: 300, h: 200 }; // stamp slot on the right page
+
+function drawLeft(sp, n) {
+  const [c, x] = paper('L');
+  x.textBaseline = 'alphabetic';
+  let y = 128;
+  x.fillStyle = RED_CSS; x.font = '800 24px Inter'; spacing(x, '4px');
+  x.fillText(sp.kicker.toUpperCase(), M, y); spacing(x, '0px');
+  y += 92;
+  x.fillStyle = INK_CSS; x.font = '800 80px Fraunces';
+  y = wrap(x, sp.title, M, y, CW - 2 * M, 86);
+  y += 6;
+  x.fillStyle = '#34313b'; x.font = '400 30px Inter';
+  y = wrap(x, sp.body, M, y, CW - 2 * M, 44);
+  if (sp.contents) {
+    y += 14; x.font = '600 30px Inter';
+    sp.contents.forEach(([a, b], i) => {
+      x.fillStyle = RED_CSS; x.fillText(String(i + 1), M, y);
+      x.fillStyle = INK_CSS; x.fillText(a, M + 40, y);
+      const w = x.measureText(b).width;
+      x.fillStyle = '#8a8478'; x.fillText(b, CW - M - w, y);
+      x.fillStyle = 'rgba(0,0,0,0.25)';
+      const s = M + 50 + x.measureText(a).width;
+      for (let d = s; d < CW - M - w - 14; d += 10) x.fillRect(d, y - 6, 3, 3);
+      y += 46;
+    });
+  }
+  if (sp.number) {
+    y += 104;
+    x.fillStyle = RED_CSS; fitFont(x, sp.number, 800, sp.numberSize || 128, sp.mono ? '"JetBrains Mono"' : 'Fraunces', CW - 2 * M);
+    x.fillText(sp.number, M, y);
+    y += 44; x.fillStyle = '#4d4955'; x.font = '600 28px Inter';
+    y = wrap(x, sp.numberSub, M, y, CW - 2 * M, 38);
+  }
+  if (sp.note) { x.fillStyle = '#6b6774'; x.font = 'italic 400 25px Inter'; wrap(x, sp.note, M, y + 8, CW - 2 * M, 34); }
+  // answer under the flap
+  x.save();
+  x.strokeStyle = 'rgba(31,29,38,0.35)'; x.setLineDash([10, 8]); x.lineWidth = 2;
+  x.strokeRect(FLAP.x, FLAP.y, FLAP.w, FLAP.h); x.restore();
+  x.fillStyle = RED_CSS; x.font = '800 22px Inter'; spacing(x, '3px');
+  x.fillText('ANSWER', FLAP.x + 24, FLAP.y + 44); spacing(x, '0px');
+  x.fillStyle = INK_CSS; x.font = '600 27px Inter';
+  wrap(x, sp.a, FLAP.x + 24, FLAP.y + 84, FLAP.w - 48, 36);
+  x.fillStyle = '#8a8478'; x.font = '400 19px Inter';
+  wrap(x, sp.sources, M, CH - 118, CW - 2 * M, 26);
+  x.fillStyle = '#8a8478'; x.font = '600 20px Inter'; x.textAlign = 'center';
+  x.fillText(String(n * 2), CW / 2, CH - 42);
+  return tex(c);
+}
+function drawRight(sp, n) {
+  const [c, x] = paper('R');
+  x.fillStyle = 'rgba(31,29,38,0.09)';
+  for (let gx = M; gx <= CW - M; gx += 32) for (let gy = 80; gy <= CH - 200; gy += 32) x.fillRect(gx, gy, 2.4, 2.4);
+  x.fillStyle = '#4d4955'; x.font = 'italic 600 30px Fraunces';
+  x.fillText(sp.fig, M, CH - 120);
+  x.fillStyle = '#8a8478'; x.font = '600 20px Inter'; x.textAlign = 'center';
+  x.fillText(String(n * 2 + 1), CW / 2, CH - 42);
+  return tex(c);
+}
+
+// ---------- materials & ink primitives
+const mat = {
+  paper: new THREE.MeshStandardMaterial({ color: 0xfbf8f1, roughness: 0.85 }),
+  paper2: new THREE.MeshStandardMaterial({ color: 0xece4d3, roughness: 0.9 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x34313d, roughness: 0.6 }),
+  metal: new THREE.MeshStandardMaterial({ color: 0xc9c6c0, roughness: 0.35, metalness: 0.6 }),
+  red: new THREE.MeshStandardMaterial({ color: 0xe0483f, roughness: 0.45, emissive: 0x7a120c, emissiveIntensity: 0.5 }),
+  amber: new THREE.MeshStandardMaterial({ color: 0xf2a53a, roughness: 0.45, emissive: 0x6b3a00, emissiveIntensity: 0.35 }),
+  green: new THREE.MeshStandardMaterial({ color: 0x3aa876, roughness: 0.5, emissive: 0x0d3d26, emissiveIntensity: 0.4 }),
+  blue: new THREE.MeshStandardMaterial({ color: 0x4a82e0, roughness: 0.45, emissive: 0x0d2350, emissiveIntensity: 0.4 }),
+  teal: new THREE.MeshStandardMaterial({ color: 0x2a9d8f, roughness: 0.45, emissive: 0x0a3833, emissiveIntensity: 0.4 }),
+  board: new THREE.MeshStandardMaterial({ color: 0x2f8a55, roughness: 0.6 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0xbfe3ff, transparent: true, opacity: 0.35, roughness: 0.1 }),
+  inkFlat: new THREE.MeshBasicMaterial({ color: INK }),
+  ledG: new THREE.MeshBasicMaterial({ color: 0x46e08a }),
+  ledR: new THREE.MeshBasicMaterial({ color: 0xff4a3d }),
+};
+const edgeMat = new THREE.LineBasicMaterial({ color: INK });
+const hullMat = new THREE.ShaderMaterial({
+  uniforms: { w: { value: 0.0024 } },
+  vertexShader: `uniform float w;
+    void main(){
+      vec4 p = vec4(position + normal * w, 1.0);
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p;
+      #endif
+      gl_Position = projectionMatrix * modelViewMatrix * p;
+    }`,
+  fragmentShader: `void main(){ gl_FragColor = vec4(0.12, 0.11, 0.15, 1.0); }`,
+  side: THREE.BackSide,
+});
+function ink(geo, m = mat.paper, { edges = true, hull = false, thr = 30 } = {}) {
+  const o = new THREE.Mesh(geo, m);
+  o.castShadow = true; o.receiveShadow = true;
+  if (edges) o.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, thr), edgeMat));
+  if (hull) o.add(new THREE.Mesh(geo, hullMat));
+  return o;
+}
+const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
+function G(...kids) { const g = new THREE.Group(); kids.forEach(k => g.add(k)); return g; }
+
+function sprite(c, h) {
+  const m = new THREE.SpriteMaterial({ map: tex(c), transparent: true, depthWrite: false, depthTest: false });
+  const s = new THREE.Sprite(m);
+  s.scale.set(h * c.width / c.height, h, 1);
+  s.renderOrder = 20;
+  return s;
+}
+function label(text, { h = 0.042, color = INK_CSS, font = '700 72px Caveat', bg = 'rgba(251,248,241,0.82)' } = {}) {
+  const [, m] = canvas(8, 8); m.font = font;
+  const w = Math.ceil(m.measureText(text).width) + 44;
+  const [c, x] = canvas(w, 100);
+  if (bg) { x.fillStyle = bg; x.beginPath(); x.roundRect(4, 10, w - 8, 80, 22); x.fill(); }
+  x.font = font; x.fillStyle = color; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text, w / 2, 54);
+  return sprite(c, h);
+}
+const glowTex = (() => {
+  const [c, x] = canvas(64, 64);
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return tex(c);
+})();
+
+// ---------- models
+function key(m = mat.red, s = 1) {
+  const g = new THREE.Group();
+  const k = new THREE.Group();
+  k.add(at(ink(new THREE.TorusGeometry(0.026, 0.009, 10, 28), m, { edges: false, hull: true }), 0, 0, 0));
+  k.add(at(ink(new THREE.BoxGeometry(0.075, 0.012, 0.009), m), 0.064, 0, 0));
+  k.add(at(ink(new THREE.BoxGeometry(0.01, 0.017, 0.009), m), 0.09, -0.013, 0));
+  k.add(at(ink(new THREE.BoxGeometry(0.008, 0.012, 0.009), m), 0.073, -0.011, 0));
+  k.position.set(-0.035, 0, 0);
+  g.add(k); g.scale.setScalar(s);
+  return g; // centred around the head-shaft middle
+}
+function standingKey(m, s) { const k = key(m, s); k.position.y = 0.04 * s; return G(k); }
+
+function codeScreen(hl, sub = '') {
+  const [c, x] = canvas(640, 400);
+  x.fillStyle = '#1b1e27'; x.fillRect(0, 0, 640, 400);
+  x.fillStyle = '#2a2f3c'; x.fillRect(0, 0, 640, 34);
+  ['#ff5f57', '#febc2e', '#28c840'].forEach((col, i) => { x.fillStyle = col; x.beginPath(); x.arc(22 + i * 22, 17, 7, 0, 7); x.fill(); });
+  const r = rng(hl.length);
+  const cols = ['#7aa2f7', '#9ece6a', '#bb9af7', '#e0af68', '#7f8799'];
+  for (let i = 0; i < 9; i++) {
+    const y = 60 + i * 36;
+    if (i === 4) {
+      x.fillStyle = 'rgba(224,72,63,0.28)'; x.fillRect(0, y - 6, 640, 34);
+      x.fillStyle = '#ff7b72'; x.font = '800 24px "JetBrains Mono"'; x.fillText(hl, 28, y + 19);
+      continue;
+    }
+    let px = 28 + (i % 3) * 24;
+    for (let k = 0; k < 4; k++) { const w = 30 + r() * 110; x.fillStyle = cols[(i + k) % 5]; x.fillRect(px, y + 4, w, 14); px += w + 16; if (px > 560) break; }
+  }
+  if (sub) { x.fillStyle = '#c0c6d6'; x.font = '600 22px Inter'; x.fillText(sub, 28, 388); }
+  return tex(c);
+}
+const kbTex = (() => {
+  const [c, x] = canvas(256, 128);
+  x.fillStyle = '#e7dfcf'; x.fillRect(0, 0, 256, 128);
+  x.strokeStyle = 'rgba(31,29,38,0.55)'; x.lineWidth = 2;
+  for (let r = 0; r < 4; r++) for (let k = 0; k < 12; k++) x.strokeRect(8 + k * 20, 8 + r * 28, 16, 22);
+  return tex(c);
+})();
+function laptop(w = 0.24, screenTex = codeScreen('KEY = "••••"')) {
+  const d = w * 0.68, g = new THREE.Group();
+  g.add(at(ink(new THREE.BoxGeometry(w, 0.01, d), mat.paper), 0, 0.005, 0));
+  const kb = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.84, d * 0.5), new THREE.MeshStandardMaterial({ map: kbTex, roughness: 0.9 }));
+  kb.rotation.x = -Math.PI / 2; kb.position.set(0, 0.0102, -d * 0.12); g.add(kb);
+  const hinge = new THREE.Group(); hinge.position.set(0, 0.01, -d / 2 + 0.004); hinge.rotation.x = -0.24;
+  const sh = w * 0.64;
+  hinge.add(at(ink(new THREE.BoxGeometry(w, sh, 0.008), mat.paper), 0, sh / 2, 0));
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.9, sh * 0.86), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+  scr.position.set(0, sh / 2, 0.0045); hinge.add(scr);
+  g.add(hinge);
+  g.userData.screen = scr;
+  return g;
+}
+function padlock(m = mat.paper, s = 1) {
+  const g = new THREE.Group();
+  g.add(at(ink(new THREE.BoxGeometry(0.07, 0.058, 0.032), m), 0, 0.029, 0));
+  g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.007, 18), mat.inkFlat), 0, 0.033, 0.0165));
+  g.add(at(new THREE.Mesh(new THREE.PlaneGeometry(0.004, 0.014), mat.inkFlat), 0, 0.023, 0.0165));
+  const pivot = new THREE.Group(); pivot.position.set(-0.022, 0.058, 0);
+  const sh = new THREE.Group(); sh.position.set(0.022, 0, 0); pivot.add(sh);
+  sh.add(at(ink(new THREE.TorusGeometry(0.022, 0.0055, 8, 24, Math.PI), mat.metal, { edges: false, hull: true }), 0, 0.014, 0));
+  for (const sx of [-1, 1]) sh.add(at(ink(new THREE.CylinderGeometry(0.0055, 0.0055, 0.016, 10), mat.metal, { edges: false, hull: true }), sx * 0.022, 0.006, 0));
+  g.add(pivot);
+  g.userData.setOpen = (o) => { pivot.position.y = 0.058 + 0.026 * o; pivot.rotation.y = 1.5 * o; };
+  g.scale.setScalar(s);
+  return g;
+}
+function globe() {
+  const g = new THREE.Group();
+  g.add(ink(new THREE.SphereGeometry(0.04, 24, 16), mat.paper, { edges: false, hull: true }));
+  const ring = (rx, ry, r = 0.0402) => { const t = new THREE.Mesh(new THREE.TorusGeometry(r, 0.0011, 4, 48), mat.inkFlat); t.rotation.set(rx, ry, 0); g.add(t); };
+  ring(Math.PI / 2, 0); ring(0, 0); ring(0, Math.PI / 3); ring(0, -Math.PI / 3);
+  for (const y of [-0.02, 0.02]) { const t = new THREE.Mesh(new THREE.TorusGeometry(Math.sqrt(0.0402 ** 2 - y * y), 0.0011, 4, 48), mat.inkFlat); t.rotation.x = Math.PI / 2; t.position.y = y; g.add(t); }
+  return g;
+}
+function repo(pub = true) {
+  const g = new THREE.Group();
+  const w = 0.2, h = 0.15, d = 0.032;
+  g.add(at(ink(new THREE.BoxGeometry(w, h, d), mat.paper), 0, h / 2, 0));
+  g.add(at(ink(new THREE.BoxGeometry(w * 0.38, 0.022, d), mat.paper), -w * 0.31, h + 0.011, 0));
+  const [c, x] = canvas(400, 300);
+  x.fillStyle = '#fbf8f1'; x.fillRect(0, 0, 400, 300);
+  x.fillStyle = INK_CSS; x.font = '800 64px "JetBrains Mono"'; x.fillText('</>', 26, 84);
+  x.font = '800 34px Inter'; x.fillText('repo', 168, 76);
+  x.fillStyle = pub ? RED_CSS : INK_CSS; x.beginPath(); x.roundRect(26, 112, pub ? 160 : 186, 48, 24); x.fill();
+  x.fillStyle = '#fff'; x.font = '800 26px Inter'; x.fillText(pub ? 'PUBLIC' : 'PRIVATE', 46, 146);
+  x.fillStyle = 'rgba(31,29,38,0.3)'; for (let i = 0; i < 4; i++) x.fillRect(26, 190 + i * 24, 120 + (i * 67) % 200, 10);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.96, h * 0.94), new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.9 }));
+  face.position.set(0, h / 2, d / 2 + 0.0008); g.add(face);
+  if (pub) {
+    const gl = globe(); gl.position.set(w * 0.36, h + 0.06, 0); g.add(gl); g.userData.globe = gl;
+    g.add(at(ink(new THREE.CylinderGeometry(0.002, 0.002, 0.03, 6), mat.dark, { edges: false }), w * 0.36, h + 0.012, 0));
+  } else {
+    const p = padlock(mat.paper, 0.9); p.position.set(w * 0.3, h - 0.01, d / 2 + 0.012); g.add(p); g.userData.lock = p;
+  }
+  return g;
+}
+function server(n = 3, leds = []) {
+  const g = new THREE.Group();
+  for (let i = 0; i < n; i++) {
+    g.add(at(ink(new THREE.BoxGeometry(0.17, 0.044, 0.12), mat.paper), 0, 0.023 + i * 0.048, 0));
+    for (let k = 0; k < 3; k++) {
+      const l = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), k === 0 ? mat.ledG : mat.ledR);
+      l.position.set(-0.065 + k * 0.014, 0.023 + i * 0.048, 0.061); g.add(l); leds.push(l);
+    }
+    for (let k = 0; k < 5; k++) g.add(at(new THREE.Mesh(new THREE.PlaneGeometry(0.004, 0.022), mat.inkFlat), 0.01 + k * 0.012, 0.023 + i * 0.048, 0.0605));
+  }
+  g.userData.top = n * 0.048;
+  return g;
+}
+function database() {
+  const g = new THREE.Group();
+  g.add(at(ink(new THREE.CylinderGeometry(0.05, 0.05, 0.11, 32), mat.paper, { thr: 40 }), 0, 0.055, 0));
+  for (const y of [0.04, 0.075]) { const t = new THREE.Mesh(new THREE.TorusGeometry(0.0502, 0.0012, 4, 48), mat.inkFlat); t.rotation.x = Math.PI / 2; t.position.y = y; g.add(t); }
+  return g;
+}
+function dynCard(w, h, pxW, pxH, drawFn) {
+  const [c, x] = canvas(pxW, pxH);
+  const t = tex(c);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
+  let last = null;
+  return { mesh: m, set(...args) { const k = JSON.stringify(args); if (k === last) return; last = k; drawFn(x, ...args); t.needsUpdate = true; } };
+}
+function calendar() {
+  const g = new THREE.Group();
+  const w = 0.14, h = 0.16;
+  const card = new THREE.Group(); card.rotation.x = -0.18;
+  card.add(at(ink(new THREE.BoxGeometry(w, h, 0.008), mat.paper), 0, h / 2, 0));
+  const face = dynCard(w * 0.94, h * 0.94, 280, 320, (x, year, sub) => {
+    x.fillStyle = '#fbf8f1'; x.fillRect(0, 0, 280, 320);
+    x.fillStyle = RED_CSS; x.fillRect(0, 0, 280, 64);
+    x.fillStyle = '#fff'; x.font = '800 30px Inter'; x.textAlign = 'center'; x.fillText('STILL PUBLIC', 140, 44);
+    x.fillStyle = INK_CSS; x.font = '800 104px Fraunces'; x.fillText(String(year), 140, 190);
+    x.fillStyle = '#4d4955'; x.font = '600 26px Inter'; x.fillText(sub, 140, 262);
+  });
+  face.mesh.position.set(0, h / 2, 0.0045); card.add(face.mesh);
+  for (const sx of [-1, 1]) card.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.008, 0.0022, 6, 16), mat.metal), sx * 0.035, h + 0.002, 0));
+  g.add(card);
+  const leg = ink(new THREE.BoxGeometry(w * 0.8, h * 0.9, 0.004), mat.paper2); leg.position.set(0, h * 0.42, -0.04); leg.rotation.x = 0.35; g.add(leg);
+  return { obj: g, set: face.set };
+}
+function envelopes(n = 24) {
+  const g = new THREE.Group(), r = rng(3);
+  for (let i = 0; i < n; i++) {
+    const e = ink(new THREE.BoxGeometry(0.052, 0.004, 0.034), mat.paper);
+    const ring = Math.floor(i / 8);
+    e.position.set((r() - 0.5) * 0.11, 0.003 + i * 0.0042, (r() - 0.5) * 0.07 * (1 - ring * 0.25));
+    e.rotation.y = (r() - 0.5) * 1.4;
+    const v = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.026, 0.0021, -0.017), new THREE.Vector3(0, 0.0021, 0.002), new THREE.Vector3(0, 0.0021, 0.002), new THREE.Vector3(0.026, 0.0021, -0.017)]);
+    e.add(new THREE.LineSegments(v, edgeMat));
+    g.add(e);
+  }
+  return g;
+}
+function cloud() {
+  const g = new THREE.Group();
+  const c = new THREE.Group(); c.position.y = 0.21;
+  [[0, 0, 0, 0.052], [0.055, -0.008, 0, 0.04], [-0.056, -0.01, 0, 0.038], [0.022, 0.035, 0, 0.04], [-0.026, 0.03, -0.004, 0.036]]
+    .forEach(([x, y, z, r]) => c.add(at(ink(new THREE.SphereGeometry(r, 24, 16), mat.paper, { edges: false, hull: true }), x, y, z)));
+  g.add(c);
+  g.add(at(ink(new THREE.CylinderGeometry(0.0022, 0.0022, 0.17, 6), mat.dark, { edges: false }), 0, 0.085, 0));
+  g.userData.top = 0.27;
+  return g;
+}
+function bucket(m = mat.paper) {
+  const g = new THREE.Group();
+  g.add(at(ink(new THREE.CylinderGeometry(0.03, 0.023, 0.05, 24), m, { thr: 40 }), 0, 0.025, 0));
+  const t = new THREE.Mesh(new THREE.TorusGeometry(0.0285, 0.0012, 4, 40), mat.inkFlat); t.rotation.x = Math.PI / 2; t.position.y = 0.038; g.add(t);
+  return g;
+}
+function crowd(cols, rows, sp = 0.022) {
+  const n = cols * rows;
+  const bodyGeo = new THREE.CapsuleGeometry(0.0062, 0.012, 3, 8); bodyGeo.translate(0, 0.012, 0);
+  const headGeo = new THREE.SphereGeometry(0.0058, 10, 8); headGeo.translate(0, 0.0285, 0);
+  const bm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+  const body = new THREE.InstancedMesh(bodyGeo, bm, n), head = new THREE.InstancedMesh(headGeo, mat.paper, n);
+  const bh = new THREE.InstancedMesh(bodyGeo, hullMat, n), hh = new THREE.InstancedMesh(headGeo, hullMat, n);
+  const m4 = new THREE.Matrix4(), r = rng(9);
+  let i = 0;
+  for (let a = 0; a < rows; a++) for (let b = 0; b < cols; b++, i++) {
+    m4.makeTranslation((b - (cols - 1) / 2) * sp + (r() - 0.5) * 0.006, 0, (a - (rows - 1) / 2) * sp + (r() - 0.5) * 0.006);
+    [body, head, bh, hh].forEach(o => o.setMatrixAt(i, m4));
+    body.setColorAt(i, new THREE.Color(0xfbf8f1));
+  }
+  [body, head].forEach(o => { o.castShadow = true; });
+  const g = G(body, head, bh, hh);
+  const order = [...Array(n).keys()].sort(() => r() - 0.5);
+  const red = new THREE.Color(0xe0483f), white = new THREE.Color(0xfbf8f1);
+  g.userData.setRed = f => { const k = Math.floor(f * n); order.forEach((idx, j) => body.setColorAt(idx, j < k ? red : white)); body.instanceColor.needsUpdate = true; };
+  return g;
+}
+function moneyBag() {
+  const g = new THREE.Group();
+  const bag = ink(new THREE.SphereGeometry(0.05, 24, 18), mat.amber, { edges: false, hull: true }); bag.scale.set(1, 0.88, 1); bag.position.y = 0.044;
+  g.add(bag);
+  g.add(at(ink(new THREE.CylinderGeometry(0.014, 0.022, 0.026, 16), mat.amber, { edges: false, hull: true }), 0, 0.094, 0));
+  const tie = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.003, 6, 24), mat.inkFlat); tie.rotation.x = Math.PI / 2; tie.position.y = 0.09; g.add(tie);
+  const [c, x] = canvas(128, 128); x.fillStyle = INK_CSS; x.font = '800 96px Fraunces'; x.textAlign = 'center'; x.fillText('$', 64, 100);
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), new THREE.MeshBasicMaterial({ map: tex(c), transparent: true }));
+  s.position.set(0, 0.046, 0.0505); g.add(s);
+  return g;
+}
+function stickyNote(text, w = 0.1, h = 0.06, font = '800 34px "JetBrains Mono"') {
+  const [c, x] = canvas(320, 192);
+  x.fillStyle = '#f6d55c'; x.fillRect(0, 0, 320, 192);
+  x.fillStyle = 'rgba(0,0,0,0.06)'; x.fillRect(0, 0, 320, 26);
+  x.fillStyle = INK_CSS; x.font = font; x.textAlign = 'center'; x.fillText(text, 160, 118);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.9, side: THREE.DoubleSide }));
+  m.castShadow = true;
+  return m;
+}
+function person(m = mat.paper) {
+  const g = new THREE.Group();
+  g.add(at(ink(new THREE.CapsuleGeometry(0.017, 0.035, 4, 14), m, { edges: false, hull: true }), 0, 0.035, 0));
+  g.add(at(ink(new THREE.SphereGeometry(0.017, 18, 12), m, { edges: false, hull: true }), 0, 0.085, 0));
+  return g;
+}
+function magnifier() {
+  const g = new THREE.Group();
+  g.add(ink(new THREE.TorusGeometry(0.03, 0.0055, 10, 36), mat.dark, { edges: false, hull: true }));
+  g.add(new THREE.Mesh(new THREE.CircleGeometry(0.029, 32), mat.glass));
+  const h = ink(new THREE.CylinderGeometry(0.0055, 0.0055, 0.055, 10), mat.dark, { edges: false, hull: true });
+  h.position.set(0.035, -0.035, 0); h.rotation.z = Math.PI / 4; g.add(h);
+  return g;
+}
+function bot(eye = mat.ledR) {
+  const g = new THREE.Group();
+  const b = new THREE.Group(); g.add(b);
+  b.add(at(ink(new THREE.BoxGeometry(0.032, 0.028, 0.024), mat.paper2), 0, 0.03, 0));
+  b.add(at(ink(new THREE.BoxGeometry(0.038, 0.03, 0.03), mat.paper), 0, 0.062, 0));
+  for (const sx of [-1, 1]) b.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.005, 0.002), eye), sx * 0.009, 0.065, 0.0155));
+  b.add(at(ink(new THREE.CylinderGeometry(0.0015, 0.0015, 0.02, 6), mat.dark, { edges: false }), 0, 0.087, 0));
+  b.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), mat.ledR), 0, 0.098, 0));
+  const legs = [-1, 1].map(sx => { const l = ink(new THREE.BoxGeometry(0.008, 0.018, 0.01), mat.dark, { edges: false }); l.position.set(sx * 0.008, 0.009, 0); b.add(l); return l; });
+  g.userData.walk = t => { b.position.y = Math.abs(Math.sin(t * 9)) * 0.004; legs[0].rotation.x = Math.sin(t * 9) * 0.5; legs[1].rotation.x = -Math.sin(t * 9) * 0.5; };
+  return g;
+}
+function consoleBox() {
+  const g = new THREE.Group();
+  g.add(at(ink(new THREE.BoxGeometry(0.24, 0.15, 0.1), mat.paper), 0, 0.075, 0));
+  const face = dynCard(0.228, 0.138, 480, 290, (x, crack) => {
+    x.fillStyle = '#20232c'; x.fillRect(0, 0, 480, 290);
+    x.fillStyle = '#e8e4da'; x.font = '800 40px Inter'; x.fillText('OpenCode', 30, 70);
+    x.fillStyle = '#9aa0b0'; x.font = '600 26px Inter'; x.fillText('Console · legacy system', 30, 110);
+    const names = [['OpenAI key', '#2a9d8f'], ['Anthropic key', '#f2a53a'], ['Google key', '#4a82e0']];
+    names.forEach(([n, col], i) => { x.fillStyle = col; x.fillRect(30, 146 + i * 42, 18, 18); x.fillStyle = '#e8e4da'; x.font = '600 24px "JetBrains Mono"'; x.fillText(n + '  ••••••', 62, 163 + i * 42); });
+    if (crack > 0) {
+      x.strokeStyle = '#ff4a3d'; x.lineWidth = 6; x.lineJoin = 'round'; x.beginPath();
+      const pts = [[300, 0], [330, 60], [300, 110], [360, 160], [330, 210], [390, 290]];
+      const k = Math.max(1, Math.round(crack * (pts.length - 1)));
+      x.moveTo(...pts[0]); for (let i = 1; i <= k; i++) x.lineTo(...pts[i]); x.stroke();
+      if (crack >= 1) { x.fillStyle = '#ff4a3d'; x.font = '800 30px Inter'; x.fillText('BREACHED', 316, 270); }
+    }
+  });
+  face.mesh.position.set(0, 0.075, 0.0508); g.add(face.mesh);
+  g.userData.setCrack = face.set;
+  return g;
+}
+function printer() {
+  const g = new THREE.Group();
+  g.add(at(ink(new THREE.BoxGeometry(0.13, 0.05, 0.09), mat.paper2), 0, 0.025, 0));
+  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.004, 0.012), mat.inkFlat), 0, 0.0505, 0));
+  const H = 0.3;
+  const [c, x] = canvas(200, 760);
+  x.fillStyle = '#fffdf7'; x.fillRect(0, 0, 200, 760);
+  x.fillStyle = INK_CSS; x.font = '800 22px "JetBrains Mono"'; x.textAlign = 'center';
+  x.fillText('USAGE', 100, 40); x.fillText('overnight', 100, 66);
+  x.font = '600 18px "JetBrains Mono"'; x.textAlign = 'left';
+  for (let i = 0; i < 17; i++) { x.fillText('api call', 18, 110 + i * 32); x.fillRect(120, 104 + i * 32, 60, 6); }
+  x.fillStyle = RED_CSS; x.font = '800 36px "JetBrains Mono"'; x.textAlign = 'center';
+  x.fillText('$1,700+', 100, 706); x.font = '600 17px Inter'; x.fillText('reported by users', 100, 736);
+  const t = tex(c);
+  const paperM = new THREE.Mesh(new THREE.PlaneGeometry(0.075, 1), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, side: THREE.DoubleSide }));
+  paperM.castShadow = true;
+  const holder = new THREE.Group(); holder.position.set(0, 0.052, 0); holder.rotation.x = -0.12; holder.add(paperM); g.add(holder);
+  g.userData.setPrint = p => {
+    p = Math.max(0.001, p);
+    paperM.scale.y = H * p; paperM.position.y = H * p / 2;
+    t.repeat.y = p; t.offset.y = 1 - p;
+  };
+  g.userData.setPrint(0);
+  return g;
+}
+function phone() {
+  const g = new THREE.Group();
+  const s = new THREE.Group(); s.rotation.x = -0.25;
+  s.add(at(ink(new THREE.BoxGeometry(0.038, 0.074, 0.006), mat.paper), 0, 0.037, 0));
+  s.add(at(new THREE.Mesh(new THREE.PlaneGeometry(0.032, 0.064), new THREE.MeshBasicMaterial({ color: 0x232733 })), 0, 0.037, 0.0032));
+  g.add(s);
+  g.add(at(ink(new THREE.BoxGeometry(0.03, 0.006, 0.03), mat.paper2), 0, 0.003, -0.012));
+  return g;
+}
+function pi() {
+  const g = new THREE.Group();
+  const b = new THREE.Group(); b.position.y = 0.014; b.rotation.x = 0.55; g.add(b);
+  b.add(ink(new THREE.BoxGeometry(0.086, 0.004, 0.056), mat.board));
+  [[-0.015, 0, 0.022, 0.016], [0.018, 0, 0.012, 0.012], [0.03, -0.012, 0.02, 0.014]].forEach(([x, z, w, d]) => b.add(at(ink(new THREE.BoxGeometry(w, 0.004, d), mat.dark), x, 0.004, z)));
+  for (let i = 0; i < 12; i++) b.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.006, 0.003), mat.metal), -0.035 + i * 0.0062, 0.005, -0.024));
+  g.add(at(ink(new THREE.BoxGeometry(0.05, 0.012, 0.012), mat.paper2), 0, 0.006, -0.02));
+  return g;
+}
+function fileCard(name) {
+  const g = new THREE.Group();
+  const w = 0.078, h = 0.1;
+  const card = new THREE.Group(); card.rotation.x = -0.15;
+  card.add(at(ink(new THREE.BoxGeometry(w, h, 0.004), mat.paper), 0, h / 2, 0));
+  const [c, x] = canvas(240, 300);
+  x.fillStyle = '#fbf8f1'; x.fillRect(0, 0, 240, 300);
+  x.fillStyle = '#e4dccb'; x.beginPath(); x.moveTo(180, 0); x.lineTo(240, 60); x.lineTo(180, 60); x.fill();
+  x.fillStyle = 'rgba(31,29,38,0.25)'; for (let i = 0; i < 6; i++) x.fillRect(22, 92 + i * 22, 70 + (i * 53) % 120, 9);
+  x.fillStyle = INK_CSS; x.font = '800 22px "JetBrains Mono"'; x.textAlign = 'center';
+  const parts = name.split('\n'); parts.forEach((p, i) => x.fillText(p, 120, 262 - (parts.length - 1 - i) * 26));
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.96, h * 0.96), new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.9 }));
+  face.position.set(0, h / 2, 0.0022); card.add(face);
+  g.add(card);
+  const k = key(mat.red, 0.42); k.position.set(0.004, h * 0.62, 0.012); k.visible = false; card.add(k);
+  g.userData.badge = k;
+  return g;
+}
+
+// ---------- flows (dashed ink path + moving dots, optional carried object)
+function flow(pts, { color = 0xe0483f, dots = 4, speed = 0.4, start = 0, carry = null, carryDur = 1.0, size = 0.04, line = true } = {}) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)));
+  const g = new THREE.Group();
+  let ln = null;
+  if (line) {
+    ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(90)), new THREE.LineDashedMaterial({ color: INK, dashSize: 0.012, gapSize: 0.009, transparent: true, opacity: 0 }));
+    ln.computeLineDistances(); g.add(ln);
+  }
+  const sp = [...Array(dots)].map(() => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, opacity: 0 }));
+    s.scale.setScalar(size); s.renderOrder = 4; g.add(s); return s;
+  });
+  if (carry) { carry.visible = false; g.add(carry); }
+  return {
+    obj: g, start,
+    update(t, vis) {
+      const lt = t - start;
+      const v = vis * clamp(lt / 0.4);
+      if (ln) ln.material.opacity = v * 0.75;
+      sp.forEach((s, i) => {
+        const u = ((Math.max(0, lt) * speed + i / dots) % 1);
+        s.position.copy(curve.getPointAt(u));
+        s.material.opacity = v * Math.sin(u * Math.PI);
+      });
+      if (carry) {
+        const u = easeInOut(clamp(lt / carryDur));
+        carry.visible = vis > 0.05 && lt > 0;
+        carry.position.copy(curve.getPointAt(u));
+        carry.scale.setScalar(Math.max(0.001, vis));
+      }
+    },
+  };
+}
+
+// ---------- spreads
+const SPREADS = [
+  {
+    nav: 'The Book of Leaks', cap: null,
+    kicker: 'An interactive pop-up book', title: 'The Book of Leaks',
+    body: 'Six real stories of secrets that walked out the door: what happened, how far it went, and what would have stopped it.',
+    contents: [['Toyota', '2017–22'], ['Uber', '2016'], ['SolarWinds', '2019'], ['OpenCode', 'Oct 2026'], ['Tailscale', 'Oct 2026'], ['My own Mac', 'Oct 2026']],
+    q: 'Why a pop-up book?', a: '“Don’t commit your keys” sticks better once you’ve watched one walk out.',
+    stamp: 'TOP SECRET', sources: 'Made with Claude Opus 5.5 + Three.js by @HeyAIpenguin. Every number in this book comes from a public source or my own scan.',
+    fig: 'Fig. 0 — Six keys, six doors.', build: buildCover,
+  },
+  {
+    nav: 'Toyota', cap: ['Toyota', 'a key public on GitHub for ~5 years'],
+    kicker: 'Chapter 1 · Toyota · 2017–2022', title: 'Five years in public',
+    body: 'A subcontractor uploaded part of the T-Connect app’s source code to a public GitHub repo. Inside: a hard-coded access key to the server with customer data. It stayed public for almost five years.',
+    number: '296,019', numberSub: 'customer emails and ID numbers exposed',
+    q: 'Did anyone use the key?', a: 'Toyota couldn’t tell from its logs. It changed the key on Sep 17, 2022, two days after the repo went private.',
+    stamp: '~5 YEARS PUBLIC', sources: 'Sources: Toyota statement (Oct 7, 2022); GitGuardian; Infosecurity Magazine.',
+    fig: 'Fig. 1 — A key that anyone could read.', build: buildToyota,
+  },
+  {
+    nav: 'Uber', cap: ['Uber', 'AWS key in a repo → 57M people'],
+    kicker: 'Chapter 2 · Uber · 2016', title: 'The key in the repo',
+    body: 'Attackers got into a private GitHub repository used by Uber engineers. In the code they found AWS credentials, and used them to download data from Uber’s cloud storage.',
+    number: '57,000,000', numberSub: 'riders and drivers',
+    q: 'What did Uber do next?', a: 'Paid the hackers $100,000 to delete the data and stay quiet, then kept the breach secret for a year.',
+    stamp: 'HIDDEN FOR 1 YEAR', sources: 'Sources: Uber statement (Nov 21, 2017); US Federal Trade Commission.',
+    fig: 'Fig. 2 — Private repo, public cloud.', build: buildUber,
+  },
+  {
+    nav: 'SolarWinds', cap: ['SolarWinds', 'password: solarwinds123'],
+    kicker: 'Chapter 3 · SolarWinds · 2019', title: 'The password was the name',
+    body: 'In 2019 a security researcher found the password to SolarWinds’ update server in a public GitHub repo. It had been there since 2018.',
+    number: 'solarwinds123', mono: true, numberSize: 96, numberSub: 'the update-server password',
+    q: 'Who got the blame?', a: 'At a US Congress hearing in February 2021, the executives blamed an intern.',
+    note: 'This password was never shown to be how the 2020 SUNBURST hackers got in.',
+    stamp: 'BLAME: THE INTERN', sources: 'Sources: researcher Vinoth Kumar (Nov 2019) via Reuters; US House hearing, Feb 26, 2021.',
+    fig: 'Fig. 3 — A sticky note, published.', build: buildSolar,
+  },
+  {
+    nav: 'OpenCode', cap: ['OpenCode', '$1,700+ overnight on users’ own keys'],
+    kicker: 'Chapter 4 · OpenCode · Oct 2026', title: 'Someone else’s server',
+    body: 'Users linked their own OpenAI, Anthropic and Google keys to OpenCode Console. On Oct 17 OpenCode said a breach of a legacy system hit 1.4% of Console users, the ones with linked providers.',
+    number: '$1,700+', numberSub: 'in charges overnight, reported by users',
+    q: 'What did those users do wrong?', a: 'Nothing on their machines. They gave a key to a third party. Use one key per tool, each with a spend limit.',
+    stamp: 'OVERNIGHT BILL', sources: 'Sources: OpenCode notice (Oct 17, 2026); TechCrunch (Oct 19, 2026); BleepingComputer.',
+    fig: 'Fig. 4 — Your key, their legacy system.', build: buildOpenCode,
+  },
+  {
+    nav: 'Tailscale', cap: ['Tailscale', 'I checked: 0 of my 7 devices run Tailscale SSH'],
+    kicker: 'Chapter 5 · Tailscale · Oct 2026', title: '11 flaws, 7 devices',
+    body: 'On Oct 25 a researcher published 11 unpatched Tailscale flaws. The SSH ones need a device that is already hacked and allowed to SSH by your policy. So I checked my own tailnet.',
+    number: '0 of 7', numberSub: 'of my devices run Tailscale SSH',
+    q: 'How do I check mine?', a: 'tailscale debug prefs | grep RunSSH. “false” means it’s off. Took me 2 minutes.',
+    stamp: 'CHECKED: 0/7', sources: 'Sources: tailworm.com (Erica Windisch, Oct 25, 2026); my own tailnet check, Oct 25.',
+    fig: 'Fig. 5 — My tailnet, checked.', build: buildTailscale,
+  },
+  {
+    nav: 'My own Mac', cap: ['My own Mac', '1 token, 7 copies'],
+    kicker: 'Chapter 6 · My Mac · Oct 2026', title: '1 token, 7 copies',
+    body: 'After OpenCode I scanned my own Mac: 7,477 files in 8 seconds. One token I had pasted into Claude Code had been auto-backed up into six more files.',
+    number: '4 live secrets', numberSize: 104, numberSub: '10 plaintext copies of them on one laptop',
+    q: 'Just delete the file?', a: 'Six more copies are still there. Rotate the key at the provider, then clean the backups.',
+    stamp: '7 COPIES', sources: 'Source: my own keyaudit scan, Oct 17, 2026.',
+    fig: 'Fig. 6 — ~/.claude.json and its backups.', build: buildMac,
+  },
+  {
+    nav: 'Your turn', cap: ['Your turn', 'scan your own machine'],
+    kicker: 'Your turn', title: 'Check your own machine',
+    body: '→ AI tools copy keys into configs and backups.\n→ One key per tool, each with a spend limit.\n→ Leaked? Rotate it. Deleting isn’t enough.\n→ Keys live in env vars, never in code.',
+    number: 'keyaudit', mono: true, numberSize: 104, numberSub: 'free, open source: github.com/HeyAIpenguin/keyaudit',
+    q: 'Does it upload my keys?', a: 'No. It runs offline, read-only, and never prints a key, only a mask.',
+    stamp: 'LOCKED', sources: 'Built with Claude Opus 5.5 + Three.js. Follow @HeyAIpenguin for more.',
+    fig: 'Fig. 7 — Locked.', build: buildEnd,
+  },
+];
+
+function buildCover() {
+  const big = standingKey(mat.red, 3.0); big.position.set(0.36, 0, 0.08);
+  const lock = padlock(mat.paper, 2.2); lock.position.set(0.74, 0, -0.12);
+  lock.userData.setOpen(1);
+  const tags = ['Toyota', 'Uber', 'SolarWinds', 'OpenCode', 'Tailscale', 'My Mac'].map((n, i) => {
+    const s = label(n, { h: 0.05, bg: '#fff7e0', font: '700 64px Caveat' });
+    s.position.set(0, 0.06, 0);
+    const g = G(s); g.position.set([0.16, 0.44, 0.74, 0.2, 0.5, 0.8][i], 0, i < 3 ? -0.42 : 0.34); return g;
+  });
+  const stem = big.children[0];
+  return {
+    items: [big, lock, ...tags],
+    flows: [],
+    update(t) { stem.rotation.y = Math.sin(t * 0.8) * 0.5; tags.forEach((g, i) => { g.children[0].position.y = 0.06 + Math.sin(t * 1.4 + i) * 0.012; }); },
+  };
+}
+function buildToyota() {
+  const lap = laptop(0.2, codeScreen('ACCESS_KEY = "AKIA••••••"', 'tconnect/config.js')); lap.position.set(0.19, 0, 0.27); lap.rotation.y = 0.35;
+  lap.add(at(label("subcontractor's code"), 0, 0.2, 0));
+  const rp = repo(true); rp.position.set(0.48, 0, -0.02); rp.rotation.y = -0.08;
+  rp.add(at(label('public GitHub repo'), -0.02, 0.26, 0));
+  const cal = calendar(); cal.obj.position.set(0.82, 0, 0.22); cal.obj.rotation.y = -0.4;
+  const srv = G(server(3), at(database(), 0.13, 0, 0.0)); srv.position.set(0.76, 0, -0.33); srv.rotation.y = -0.2;
+  srv.add(at(label('customer data server'), 0.05, 0.22, 0));
+  const env = envelopes(26); env.position.set(0.37, 0, -0.38);
+  env.add(at(label('296,019 emails + IDs', { color: RED_CSS }), 0, 0.15, 0));
+  const ck = key(mat.red, 0.8);
+  const f1 = flow([[0.2, 0.12, 0.2], [0.33, 0.24, 0.12], [0.46, 0.1, 0.03]], { start: 1.3, carry: ck, carryDur: 1.1 });
+  const f2 = flow([[0.55, 0.14, -0.03], [0.66, 0.27, -0.16], [0.73, 0.16, -0.3]], { start: 2.3, dots: 5 });
+  const f3 = flow([[0.7, 0.08, -0.34], [0.56, 0.16, -0.4], [0.42, 0.08, -0.38]], { start: 2.9, dots: 4 });
+  const leds = []; srv.children[0].traverse(o => { if (o.isMesh && o.material === mat.ledR) leds.push(o); });
+  return {
+    items: [lap, rp, cal.obj, srv, env], flows: [f1, f2, f3],
+    update(t) {
+      const yr = Math.min(2022, 2017 + Math.floor(clamp((t - 1.4) / 2.6) * 5.99));
+      cal.set(yr, yr < 2022 ? 'anyone can read it' : 'made private Sep 15');
+      leds.forEach((l, i) => { l.visible = Math.sin(t * 7 + i * 1.3) > 0; });
+      if (rp.userData.globe) rp.userData.globe.rotation.y = t * 0.8;
+    },
+  };
+}
+function buildUber() {
+  const atk = G(at(person(mat.dark), -0.02, 0, 0), at(person(mat.dark), 0.03, 0, 0.02)); atk.position.set(0.11, 0, -0.27);
+  atk.add(at(label('attackers'), 0, 0.15, 0));
+  const rp = repo(false); rp.position.set(0.28, 0, -0.06); rp.rotation.y = 0.15;
+  rp.add(at(label('private GitHub repo'), 0, 0.25, 0));
+  const ak = standingKey(mat.amber, 1.5); ak.position.set(0.36, 0, 0.27);
+  ak.add(at(label('AWS key in the code'), 0.02, 0.15, 0));
+  const cl = G(cloud(), at(bucket(), -0.07, 0, 0.06), at(bucket(), 0, 0, 0.08), at(bucket(), 0.07, 0, 0.06)); cl.position.set(0.6, 0, -0.3);
+  cl.add(at(label('cloud storage'), 0, 0.33, 0));
+  const cr = crowd(13, 7, 0.022); cr.position.set(0.7, 0, 0.2);
+  cr.add(at(label('57M riders & drivers', { color: RED_CSS }), 0, 0.12, 0));
+  const bag = moneyBag(); bag.position.set(0.91, 0, -0.1);
+  bag.add(at(label('$100K to stay quiet'), 0, 0.17, 0));
+  const flows = [
+    flow([[0.13, 0.12, -0.25], [0.2, 0.2, -0.17], [0.26, 0.12, -0.08]], { start: 1.2, dots: 3 }),
+    flow([[0.3, 0.1, -0.03], [0.34, 0.2, 0.12], [0.37, 0.12, 0.24]], { start: 1.7, color: 0xf2a53a, dots: 3 }),
+    flow([[0.4, 0.14, 0.24], [0.52, 0.28, 0.0], [0.6, 0.18, -0.25]], { start: 2.2, color: 0xf2a53a, dots: 4 }),
+    flow([[0.64, 0.12, -0.24], [0.72, 0.2, -0.05], [0.7, 0.08, 0.14]], { start: 2.7, dots: 5 }),
+    flow([[0.9, 0.12, -0.1], [0.55, 0.42, -0.5], [0.14, 0.16, -0.27]], { start: 3.3, color: 0xf2a53a, dots: 5, speed: 0.3 }),
+  ];
+  return {
+    items: [atk, rp, ak, cl, cr, bag], flows,
+    update(t) {
+      rp.userData.lock.userData.setOpen(easeOut(clamp((t - 1.4) / 0.5)));
+      cr.userData.setRed(clamp((t - 2.9) / 1.6));
+      ak.children[0].rotation.y = Math.sin(t * 1.5) * 0.4;
+    },
+  };
+}
+function buildSolar() {
+  const leds = [];
+  const srv = server(4, leds); srv.position.set(0.27, 0, -0.17); srv.rotation.y = 0.2;
+  const note = stickyNote('solarwinds123', 0.11, 0.066); note.position.set(0.02, 0.165, 0.063); note.rotation.z = 0.06; srv.add(note);
+  srv.add(at(label('update server'), 0, 0.27, 0));
+  const rp = repo(true); rp.position.set(0.71, 0, -0.22); rp.rotation.y = -0.2;
+  rp.add(at(label('public GitHub repo, 2018–19'), 0, 0.27, 0));
+  const res = G(person(mat.paper)); res.position.set(0.82, 0, 0.18);
+  res.add(at(label('researcher, Nov 2019'), 0, 0.15, 0));
+  const mg = magnifier(); const mgw = G(mg); mgw.position.set(0.66, 0, 0.0);
+  const intern = G(person(mat.paper2)); intern.position.set(0.3, 0, 0.24);
+  intern.add(at(ink(new THREE.CylinderGeometry(0.0018, 0.0018, 0.11, 6), mat.dark, { edges: false }), 0.03, 0.06, 0));
+  const sign = stickyNote('the intern?', 0.085, 0.045, '700 52px Caveat'); sign.position.set(0.03, 0.12, 0.002); intern.add(sign);
+  const blame = label('blamed in Congress, 2021', { color: RED_CSS }); blame.position.set(0, 0.2, 0); intern.add(blame);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.3, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+  cone.position.set(0, 0.15, 0); intern.add(cone);
+  const copy = stickyNote('solarwinds123', 0.09, 0.054);
+  const f1 = flow([[0.3, 0.2, -0.1], [0.5, 0.34, -0.22], [0.68, 0.14, -0.2]], { start: 1.3, carry: copy, carryDur: 1.2, dots: 3 });
+  const f2 = flow([[0.72, 0.16, -0.18], [0.8, 0.2, -0.02], [0.82, 0.12, 0.16]], { start: 2.6, dots: 3 });
+  const f3 = flow([[0.8, 0.14, 0.18], [0.55, 0.28, 0.3], [0.33, 0.14, 0.25]], { start: 2.3, dots: 4 });
+  return {
+    items: [srv, rp, res, mgw, intern], flows: [f1, f2, f3],
+    update(t) {
+      leds.forEach((l, i) => { l.visible = Math.sin(t * 6 + i * 1.7) > -0.2; });
+      mg.position.set(0.04 + Math.sin(t * 1.3) * 0.05, 0.15 + Math.sin(t * 2.1) * 0.015, -0.1);
+      copy.rotation.z = Math.sin(t * 5) * 0.2;
+      cone.material.opacity = 0.32 * clamp((t - 2.5) / 0.4);
+      blame.material.opacity = clamp((t - 2.5) / 0.4);
+      if (rp.userData.globe) rp.userData.globe.rotation.y = t * 0.8;
+    },
+  };
+}
+function buildOpenCode() {
+  const lap = laptop(0.17, codeScreen('linked: OpenAI · Anthropic · Google', 'your laptop')); lap.position.set(0.15, 0, 0.27); lap.rotation.y = 0.3;
+  lap.add(at(label('your keys'), 0, 0.17, 0));
+  const cb = consoleBox(); cb.position.set(0.45, 0, -0.14); cb.rotation.y = 0.05;
+  cb.add(at(label('1.4% of Console users hit'), 0, 0.22, 0));
+  const bots = [0, 1, 2, 3].map(i => { const b = bot(); b.rotation.y = -1.9; return b; });
+  const botG = G(...bots); botG.position.set(0.8, 0, -0.3);
+  botG.add(at(label("attackers' AI agents"), 0, 0.17, 0));
+  const pr = printer(); pr.position.set(0.8, 0, 0.17); pr.rotation.y = -0.3;
+  const keys = [mat.teal, mat.amber, mat.blue].map(m => key(m, 0.7));
+  const fk = keys.map((k, i) => flow([[0.18, 0.12, 0.22], [0.3, 0.25 + i * 0.03, 0.06], [0.42, 0.13, -0.08]], { start: 1.1 + i * 0.35, carry: k, carryDur: 0.9, dots: 2, line: i === 0 }));
+  const f2 = flow([[0.54, 0.12, -0.15], [0.66, 0.2, -0.26], [0.76, 0.1, -0.3]], { start: 2.2, dots: 5 });
+  const f3 = flow([[0.8, 0.12, -0.26], [0.86, 0.2, -0.05], [0.81, 0.12, 0.13]], { start: 2.5, color: 0xf2a53a, dots: 5 });
+  return {
+    items: [lap, cb, botG, pr], flows: [...fk, f2, f3],
+    update(t) {
+      cb.userData.setCrack(clamp((t - 1.9) / 0.5));
+      bots.forEach((b, i) => { const ph = ((t * 0.12 + i * 0.25) % 1); b.position.set(0.08 - ph * 0.16, 0, (i % 2) * 0.05 - 0.02); b.userData.walk(t + i); });
+      pr.userData.setPrint(easeOut(clamp((t - 2.6) / 1.5)));
+    },
+  };
+}
+function buildTailscale() {
+  const kinds = [['Mac', 'lap'], ['Mac', 'lap'], ['Mac', 'lap'], ['iPhone', 'phone'], ['iPad', 'phone'], ['Pi', 'pi'], ['Pi', 'pi']];
+  const C = new THREE.Vector3(0.5, 0, -0.04);
+  const items = [], badges = [], spots = [];
+  kinds.forEach(([name, k], i) => {
+    const a = -Math.PI / 2 + i / kinds.length * Math.PI * 2;
+    const p = new THREE.Vector3(C.x + Math.cos(a) * 0.33, 0, C.z + Math.sin(a) * 0.28);
+    const o = k === 'lap' ? laptop(0.12, codeScreen('RunSSH: false')) : k === 'phone' ? phone() : pi();
+    const g = G(o); g.position.copy(p); g.rotation.y = -Math.atan2(p.x - C.x, p.z - C.z) * 0.35;
+    g.add(at(label(name, { h: 0.036 }), 0, 0.12, 0));
+    const b = label('✓ SSH off', { h: 0.036, color: '#ffffff', bg: '#2f9e6b', font: '800 54px Inter' });
+    b.position.set(0, 0.17, 0); b.material.opacity = 0; g.add(b); badges.push(b);
+    items.push(g); spots.push(p.clone().setY(0.05));
+  });
+  const segs = [];
+  for (let i = 0; i < spots.length; i++) for (let j = i + 1; j < spots.length; j++) segs.push(spots[i], spots[j]);
+  const mesh = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineDashedMaterial({ color: INK, dashSize: 0.01, gapSize: 0.01, transparent: true, opacity: 0 }));
+  mesh.computeLineDistances();
+  const hub = G(mesh);
+  const center = label('tailnet', { h: 0.05, font: '700 80px Caveat' }); center.position.set(C.x, 0.1, C.z); hub.add(center);
+  const pk = [[0, 3], [1, 5], [2, 6], [4, 0], [3, 6]].map(([a, b], i) => flow([spots[a].toArray(), spots[a].clone().lerp(spots[b], 0.5).setY(0.1).toArray(), spots[b].toArray()], { start: 1.2 + i * 0.2, color: 0x2f9e6b, dots: 2, line: false, speed: 0.5 }));
+  return {
+    items, flows: pk, extra: hub,
+    update(t, vis) {
+      mesh.material.opacity = 0.4 * vis * clamp((t - 1.0) / 0.5);
+      center.material.opacity = vis;
+      badges.forEach((b, i) => { const p = clamp((t - 1.6 - i * 0.22) / 0.25); b.material.opacity = p * vis; b.scale.set(b.userData.w0 * (0.6 + 0.4 * easeBack(p)), b.userData.h0 * (0.6 + 0.4 * easeBack(p)), 1); });
+    },
+    init() { badges.forEach(b => { b.userData.w0 = b.scale.x; b.userData.h0 = b.scale.y; }); },
+  };
+}
+function buildMac() {
+  const scr = dynCard(1, 1, 640, 400, (x, files, secs, done) => {
+    x.fillStyle = '#14161d'; x.fillRect(0, 0, 640, 400);
+    x.fillStyle = '#46e08a'; x.font = '800 34px "JetBrains Mono"'; x.fillText('$ keyaudit', 30, 64);
+    x.fillStyle = '#c0c6d6'; x.font = '600 28px "JetBrains Mono"';
+    x.fillText(`files  ${files.toLocaleString('en-US')}`, 30, 130);
+    x.fillText(`time   ${secs.toFixed(1)} s`, 30, 174);
+    x.fillStyle = '#2a2f3c'; x.fillRect(30, 200, 580, 18);
+    x.fillStyle = '#46e08a'; x.fillRect(30, 200, 580 * files / 7477, 18);
+    if (done) {
+      x.fillStyle = '#ff7b72'; x.font = '800 32px "JetBrains Mono"';
+      x.fillText('4 live secrets', 30, 280); x.fillText('10 plaintext copies', 30, 326);
+      x.fillStyle = '#e0af68'; x.font = '600 24px "JetBrains Mono"'; x.fillText('1 token × 7 files', 30, 368);
+    }
+  });
+  scr.mesh.material = new THREE.MeshBasicMaterial({ map: scr.mesh.material.map, toneMapped: false });
+  const lap = laptop(0.26, scr.mesh.material.map); lap.position.set(0.5, 0, 0.3);
+  lap.add(at(label('my Mac', { h: 0.045 }), -0.21, 0.08, 0.02));
+  const names = ['.claude.json', '.claude.json\n.backup', 'backups/\n1', 'backups/\n2', 'backups/\n3', 'backups/\n4', 'backups/\n5'];
+  const cards = names.map((n, i) => {
+    const c = fileCard(n);
+    const a = (i - 3) * 0.33;
+    c.position.set(0.5 + Math.sin(a) * 0.4, 0, -0.06 - Math.cos(a) * 0.32);
+    c.rotation.y = -a * 0.8;
+    return c;
+  });
+  const bigKey = standingKey(mat.red, 1.4); bigKey.position.set(0.5, 0.0, -0.02);
+  bigKey.add(at(label('1 MCP token', { color: RED_CSS }), 0.0, 0.15, 0));
+  const src = new THREE.Vector3(0.5, 0.08, -0.02);
+  const flows = cards.map((c, i) => {
+    const e = c.position.clone().setY(0.07);
+    const mid = src.clone().lerp(e, 0.5).setY(0.22);
+    return flow([src.toArray(), mid.toArray(), e.toArray()], { start: 2.4 + i * 0.13, carry: key(mat.red, 0.45), carryDur: 0.6, dots: 2 });
+  });
+  const beam = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.16), new THREE.MeshBasicMaterial({ color: 0x46e08a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+  beam.rotation.y = 0; const beamG = G(beam);
+  return {
+    items: [lap, bigKey, ...cards], flows, extra: beamG,
+    update(t, vis) {
+      const p = clamp((t - 0.9) / 1.6);
+      scr.set(Math.round(7477 * p), 8 * p, p >= 1);
+      const bt = clamp((t - 0.9) / 1.6);
+      beam.material.opacity = vis * 0.22 * Math.sin(bt * Math.PI);
+      beam.position.set(0.5, 0.08, 0.15 - bt * 0.6);
+      bigKey.children[0].rotation.y = Math.sin(t * 1.2) * 0.6;
+      cards.forEach((c, i) => { c.userData.badge.visible = t > 2.4 + i * 0.13 + 0.6; });
+    },
+  };
+}
+function buildEnd() {
+  const lock = padlock(mat.paper, 2.6); lock.position.set(0.5, 0, -0.05);
+  const k = standingKey(mat.red, 1.6); k.position.set(0.24, 0, 0.18);
+  const lap = laptop(0.18, codeScreen('keyaudit: 0 new keys', 'daily check')); lap.position.set(0.8, 0, 0.2); lap.rotation.y = -0.4;
+  const done = label('✓ locked', { h: 0.06, color: '#ffffff', bg: '#2f9e6b', font: '800 56px Inter' }); done.position.set(0.5, 0.33, -0.05);
+  const w0 = done.scale.x, h0 = done.scale.y;
+  return {
+    items: [lock, k, lap], flows: [], extra: G(done),
+    update(t, vis) {
+      lock.userData.setOpen(1 - easeOut(clamp((t - 1.3) / 0.35)));
+      const p = clamp((t - 1.7) / 0.3);
+      done.material.opacity = p * vis; done.scale.set(w0 * (0.5 + 0.5 * easeBack(p)), h0 * (0.5 + 0.5 * easeBack(p)), 1);
+      k.children[0].rotation.y = Math.sin(t) * 0.5;
+    },
+  };
+}
+
+// ---------- flap & stamp (left page)
+const toWorldL = (px, py) => new THREE.Vector3(-PW + px / CW * PW, 0, -PH / 2 + py / CH * PH);
+function makeFlap(sp) {
+  const [c, x] = canvas(430, 230);
+  x.fillStyle = '#f6d55c'; x.fillRect(0, 0, 430, 230);
+  x.fillStyle = 'rgba(255,255,255,0.45)'; x.fillRect(130, 0, 170, 22);
+  x.fillStyle = 'rgba(31,29,38,0.6)'; x.font = '800 18px Inter'; spacing(x, '3px'); x.fillText('LIFT THE FLAP  ↑', 24, 54); spacing(x, '0px');
+  x.fillStyle = INK_CSS; x.font = '700 50px Caveat';
+  wrap(x, sp.q, 24, 120, 380, 52);
+  const w = FLAP.w / CW * PW, h = FLAP.h / CH * PH;
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.9 }));
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ color: 0xe6c64e, roughness: 0.9, side: THREE.BackSide }));
+  [front, back].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.x = -w / 2; m.castShadow = true; });
+  const hinge = G(front, back);
+  const p = toWorldL(FLAP.x + FLAP.w, FLAP.y + FLAP.h / 2);
+  hinge.position.set(p.x, FLAT + 0.003, p.z);
+  hinge.userData.hit = front;
+  return hinge;
+}
+function makeStamp(text) {
+  const [c, x] = canvas(560, 300);
+  x.strokeStyle = RED_CSS; x.fillStyle = RED_CSS; x.lineWidth = 12;
+  x.beginPath(); x.roundRect(16, 16, 528, 268, 26); x.stroke();
+  x.lineWidth = 4; x.beginPath(); x.roundRect(36, 36, 488, 228, 16); x.stroke();
+  fitFont(x, text, 800, 64, 'Inter', 440); x.textAlign = 'center'; x.textBaseline = 'middle';
+  spacing(x, '2px'); x.fillText(text, 280, 156);
+  const r = rng(text.length * 7);
+  x.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(0,0,0,${0.3 + r() * 0.7})`; x.fillRect(r() * 560, r() * 300, 1 + r() * 4, 1 + r() * 3); }
+  const w = STAMP.w / CW * PW, h = w * 300 / 560;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex(c), transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  m.rotation.x = -Math.PI / 2;
+  const g = G(m);
+  const p = new THREE.Vector3((STAMP.x + STAMP.w / 2) / CW * PW, 0, -PH / 2 + (STAMP.y + STAMP.h / 2) / CH * PH);
+  g.position.set(p.x, FLAT + 0.0015, p.z); g.rotation.y = 0.14;
+  g.userData.m = m;
+  return g;
+}
+
+// ---------- instantiate spreads
+const ROOT = new THREE.Group(); ROOT.position.y = FLAT; scene.add(ROOT);
+const texCache = {};
+const pageTex = (i, s) => texCache[i + s] ||= (s === 'L' ? drawLeft(SPREADS[i], i) : drawRight(SPREADS[i], i));
+SPREADS.forEach((sp, i) => {
+  const b = sp.build();
+  const g = new THREE.Group();
+  b.items.forEach(o => g.add(o));
+  b.flows.forEach(f => g.add(f.obj));
+  if (b.extra) g.add(b.extra);
+  b.init?.();
+  ROOT.add(g);
+  const flap = makeFlap(sp), stamp = makeStamp(sp.stamp);
+  scene.add(flap, stamp);
+  Object.assign(sp, { b, g, flap, stamp, t: 0, fold: 1, lifted: false, flapA: 0, liftT: null });
+  g.visible = false; flap.visible = false; stamp.visible = false;
+});
+function animSpread(sp, dt) {
+  const t = sp.t;
+  const n = sp.b.items.length;
+  sp.b.items.forEach((o, i) => {
+    const p = Math.min(clamp((t - 0.15 - i * 0.13) / 0.6), sp.fold);
+    o.visible = p > 0.002;
+    const e = easeBack(p);
+    o.userData.s0 ??= o.scale.x * (sp.k || 1.28);
+    o.scale.setScalar(o.userData.s0 * Math.max(0.001, 0.35 + 0.65 * e));
+    o.rotation.z = (1 - easeOut(p)) * 1.45;
+  });
+  const vis = sp.fold * clamp((t - 0.3 - n * 0.13) / 0.3);
+  sp.b.flows.forEach(f => f.update(t, vis));
+  sp.b.update?.(t, sp.fold);
+  // flap & stamp
+  const target = sp.lifted ? 1 : 0;
+  sp.flapA += (target - sp.flapA) * (1 - Math.exp(-dt * 9));
+  sp.flap.rotation.z = -sp.flapA * 2.96;
+  const sm = sp.stamp.userData.m;
+  if (sp.liftT !== null) {
+    const p = clamp((t - sp.liftT - 0.35) / 0.22);
+    sm.material.opacity = 0.9 * p * sp.fold;
+    sp.stamp.scale.setScalar(1 + (1 - easeOut(p)) * 1.2);
+  } else { sm.material.opacity = 0; }
+}
+function liftFlap(sp) { if (!sp.lifted) { sp.lifted = true; sp.liftT = sp.t; } else { sp.lifted = false; } }
+function resetSpread(sp) { sp.t = 0; sp.fold = 1; sp.lifted = false; sp.flapA = 0; sp.liftT = null; }
+
+// ---------- page turning sheet
+const N = 36;
+const sheetGeo = new THREE.PlaneGeometry(PW, PH, N, 1); sheetGeo.rotateX(-Math.PI / 2);
+const sheetF = new THREE.Mesh(sheetGeo, new THREE.MeshStandardMaterial({ roughness: 0.95, side: THREE.FrontSide }));
+const sheetB = new THREE.Mesh(sheetGeo, new THREE.MeshStandardMaterial({ roughness: 0.95, side: THREE.BackSide }));
+sheetF.castShadow = sheetB.castShadow = true;
+const sheet = G(sheetF, sheetB); sheet.visible = false; scene.add(sheet);
+function mirrored(t) { const m = t.clone(); m.wrapS = THREE.RepeatWrapping; m.repeat.x = -1; m.offset.x = 1; m.needsUpdate = true; return m; }
+const mirrorCache = new Map();
+function poseSheet(theta, dir) {
+  const pos = sheetGeo.attributes.position;
+  const k = 0.85 * Math.sin(theta) * (dir > 0 ? -1 : 1);
+  const ds = PW / N;
+  let x = 0, y = 0; const xs = [0], ys = [0];
+  for (let i = 1; i <= N; i++) { const s = (i - 0.5) / N; const a = theta + k * s; x += Math.cos(a) * ds; y += Math.sin(a) * ds; xs.push(x); ys.push(y); }
+  const flat = Math.abs(Math.cos(theta)) ** 6;
+  for (let r = 0; r < 2; r++) for (let i = 0; i <= N; i++) {
+    const idx = r * (N + 1) + i;
+    pos.setX(idx, xs[i]);
+    pos.setY(idx, ys[i] + FLAT + 0.0025 + 0.01 * Math.sin(theta) + (lift(Math.abs(xs[i])) - FLAT) * flat);
+  }
+  pos.needsUpdate = true; sheetGeo.computeVertexNormals();
+}
+
+// ---------- navigation state
+let cur = 0, flip = null;
+const label$ = document.getElementById('label');
+function setStatic(li, ri) { leftPage.material.map = pageTex(li, 'L'); rightPage.material.map = pageTex(ri, 'R'); leftPage.material.needsUpdate = rightPage.material.needsUpdate = true; }
+function showSpread(i, { left = true, right = true } = {}) {
+  const sp = SPREADS[i];
+  if (right) { sp.g.visible = true; sp.stamp.visible = true; }
+  if (left) sp.flap.visible = true;
+}
+function hideSpread(i, { left = true, right = true } = {}) {
+  const sp = SPREADS[i];
+  if (right) { sp.g.visible = false; sp.stamp.visible = false; }
+  if (left) sp.flap.visible = false;
+}
+function updateUI() {
+  const sp = SPREADS[cur];
+  label$.innerHTML = `<b>${cur || '·'}</b>${sp.nav}`;
+  document.getElementById('prev').disabled = cur === 0;
+  document.getElementById('next').disabled = cur === SPREADS.length - 1;
+}
+function go(dir) {
+  if (flip) return;
+  const to = cur + dir;
+  if (to < 0 || to >= SPREADS.length) return;
+  flip = { dir, to, t: 0, phase: 'fold' };
+  SPREADS[cur].lifted = false;
+  playSfx('flip');
+}
+function goTo(i) { if (i !== cur) go(i > cur ? 1 : -1), pendingTarget = i; }
+let pendingTarget = null;
+
+function stepFlip(dt) {
+  const from = SPREADS[cur], to = SPREADS[flip.to];
+  flip.t += dt;
+  if (flip.phase === 'fold') {
+    from.fold = Math.max(0, 1 - flip.t / 0.32);
+    if (flip.t >= 0.32) {
+      flip.phase = 'turn'; flip.t = 0;
+      hideSpread(cur, { left: false });
+      resetSpread(to); to.fold = 1;
+      const fT = flip.dir > 0 ? pageTex(cur, 'R') : pageTex(flip.to, 'R');
+      const bT = flip.dir > 0 ? pageTex(flip.to, 'L') : pageTex(cur, 'L');
+      if (!mirrorCache.has(bT)) mirrorCache.set(bT, mirrored(bT));
+      sheetF.material.map = fT; sheetB.material.map = mirrorCache.get(bT);
+      sheetF.material.needsUpdate = sheetB.material.needsUpdate = true;
+      if (flip.dir > 0) setStatic(cur, flip.to);
+      else { setStatic(flip.to, cur); hideSpread(cur, { right: false }); showSpread(flip.to, { right: false }); }
+      sheet.visible = true;
+    }
+  }
+  if (flip.phase === 'turn') {
+    const p = easeInOut(clamp(flip.t / 0.95));
+    poseSheet(flip.dir > 0 ? p * Math.PI : (1 - p) * Math.PI, flip.dir);
+    if (flip.t >= 0.95) {
+      sheet.visible = false;
+      setStatic(flip.to, flip.to);
+      if (flip.dir > 0) { hideSpread(cur, { right: false }); showSpread(flip.to, { right: false }); }
+      showSpread(flip.to, { left: false });
+      cur = flip.to; flip = null;
+      updateUI(); playSfx('pop');
+      if (pendingTarget !== null && pendingTarget !== cur) go(pendingTarget > cur ? 1 : -1); else pendingTarget = null;
+    }
+  }
+}
+
+// ---------- sound (tiny, synthesized; interactive mode only)
+let actx = null;
+function playSfx(kind) {
+  if (CAPTURE || !actx) return;
+  const t = actx.currentTime;
+  if (kind === 'flip') {
+    const len = 0.35, buf = actx.createBuffer(1, actx.sampleRate * len, actx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / d.length) * 0.35;
+    const s = actx.createBufferSource(); s.buffer = buf;
+    const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.6;
+    s.connect(f).connect(actx.destination); s.start(t);
+  } else {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.setValueAtTime(kind === 'stamp' ? 120 : 520, t); o.frequency.exponentialRampToValueAtTime(kind === 'stamp' ? 60 : 900, t + 0.12);
+    g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.2);
+  }
+}
+
+// ---------- input
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let downAt = null;
+function pick(e) {
+  ptr.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+}
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; actx ||= new (window.AudioContext || window.webkitAudioContext)(); });
+renderer.domElement.addEventListener('pointermove', e => {
+  if (flip) return;
+  pick(e);
+  const hit = ray.intersectObject(SPREADS[cur].flap.userData.hit, false).length;
+  renderer.domElement.style.cursor = hit ? 'pointer' : '';
+});
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6 || flip) return;
+  pick(e);
+  const sp = SPREADS[cur];
+  if (ray.intersectObject(sp.flap.userData.hit, false).length) { liftFlap(sp); if (sp.lifted) setTimeout(() => playSfx('stamp'), 350); return; }
+  const r = ray.intersectObject(rightPage, false)[0];
+  if (r && r.uv.x > 0.8) return go(1);
+  const l = ray.intersectObject(leftPage, false)[0];
+  if (l && l.uv.x < 0.2) return go(-1);
+});
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') go(1);
+  if (e.key === 'ArrowLeft') go(-1);
+});
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+const toc = document.getElementById('toc');
+toc.innerHTML = SPREADS.map((s, i) => `<button data-i="${i}"><span>${i || '·'}</span>${s.nav}</button>`).join('');
+toc.onclick = e => { const b = e.target.closest('button'); if (b) { toc.hidden = true; goTo(+b.dataset.i); } };
+document.getElementById('menuBtn').onclick = () => { toc.hidden = !toc.hidden; };
+
+// ---------- capture timeline (deterministic, driven by window.__frame)
+const hook = document.getElementById('hook'), capline = document.getElementById('capline');
+hook.querySelector('.big').innerHTML = Q.get('h1') || '6 real security leaks.<br><em>One 3D pop-up book.</em>';
+hook.querySelector('.small').textContent = Q.get('h2') || 'Toyota · Uber · SolarWinds · OpenCode · Tailscale · my own Mac';
+const CAP = { first: 2.4, per: 5.5, flapAt: 1.6 };
+let capNextAt = CAP.first, capLastCap = -1;
+function captureTick(T) {
+  hook.style.opacity = T < 2.3 ? 1 : clamp(1 - (T - 2.3) / 0.4);
+  if (!flip && T >= capNextAt && cur < SPREADS.length - 1) { go(1); capNextAt += CAP.per; }
+  const sp = SPREADS[cur];
+  if (!flip && cur > 0 && sp.t > CAP.flapAt && !sp.lifted && sp.liftT === null) liftFlap(sp);
+  const want = flip ? -1 : cur;
+  if (want !== capLastCap) {
+    capLastCap = want;
+    const c = want >= 1 ? SPREADS[want].cap : null;
+    capline.style.opacity = c ? 1 : 0;
+    if (c) capline.innerHTML = want === SPREADS.length - 1 && Q.get('endcap') ? Q.get('endcap') : `<span>${want <= 6 ? want + ' · ' : ''}${c[0]}</span> · ${c[1]}`;
+  }
+  const base = camBase();
+  camera.position.set(base.x + Math.sin(T * 0.35) * 0.05, base.y - 0.04 * Math.sin(T * 0.2), base.z - 0.06 + Math.cos(T * 0.3) * 0.04);
+  camera.lookAt(TARGET.x + 0.015 * Math.sin(T * 0.25), TARGET.y, TARGET.z);
+}
+
+// ---------- loop
+let T = 0;
+function frame(dt) {
+  T += dt;
+  if (CAPTURE) captureTick(T);
+  if (flip) stepFlip(dt);
+  for (const [i, sp] of SPREADS.entries()) {
+    if (!sp.g.visible && !sp.flap.visible) continue;
+    if (i === cur && !flip) sp.t += dt;
+    else if (i === cur && flip?.phase === 'fold') sp.t += dt;
+    animSpread(sp, dt);
+  }
+  if (!CAPTURE) controls.update();
+  renderer.render(scene, camera);
+}
+setStatic(0, 0); showSpread(0); updateUI();
+if (CAPTURE) SPREADS[0].t = 1.6;
+const clock = new THREE.Clock();
+window.__frame = (dt = 1 / 30) => frame(dt);
+window.__ready = true;
+window.__dbg = { SPREADS, scene, camera, go, get cur() { return cur; } };
+document.getElementById('loader').style.opacity = 0;
+setTimeout(() => document.getElementById('loader').remove(), 700);
+if (!CAPTURE) {
+  renderer.setAnimationLoop(() => frame(Math.min(0.05, clock.getDelta())));
+  setTimeout(() => { document.getElementById('hint').style.opacity = 0; }, 9000);
+} else frame(0);
+</script>
+</body>
+</html>
